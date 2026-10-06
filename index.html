@@ -150,11 +150,14 @@ nav button[style*="color:var(--b)"]{background:rgba(41,72,245,.11);font-weight:8
   <form class="card w-full max-w-sm !p-6" onsubmit="doLogin(event)">
     <img id="lgl" class="logo-c" alt="HappyFit Kids" style="height:52px;margin:0 auto 10px"><img id="lgl2" class="logo-w" alt="HappyFit Kids" style="height:52px;margin:0 auto 10px">
     <div class="stripe my-3 rounded"></div>
-    <h2 class="text-center">Entrar</h2><p class="hint text-center mb-2">Acesso restrito à equipa HappyFit Kids.</p>
+    <div class="grid grid-cols-2 gap-1 bg-white dark:bg-slate-900 p-1 rounded-2xl border-2 border-blue-100 dark:border-slate-700 mb-2"><button id="ltin" type="button" class="rounded-xl py-2 font-extrabold text-sm text-white" style="background:var(--b)" onclick="setLMode('in')">Entrar</button><button id="ltup" type="button" class="rounded-xl py-2 font-extrabold text-sm" onclick="setLMode('up')">Cadastrar</button></div>
+    <h2 id="lh" class="text-center">Entrar</h2><p id="lhint" class="hint text-center mb-2">Acesso restrito à equipa HappyFit Kids.</p>
+    <div id="lnw" class="hidden"><p class="lb">Nome completo do(a) professor(a)</p><input id="lnome" type="text" autocomplete="name" class="in"></div>
     <p class="lb">E-mail</p><input id="le" type="email" autocomplete="username" required class="in">
     <p class="lb">Senha</p><input id="lp" type="password" autocomplete="current-password" required class="in">
     <p id="lerr" class="text-sm font-bold mt-2" style="color:var(--p)"></p>
     <button id="lb" class="btn mt-4" type="submit">Entrar</button>
+    <button id="lalt" type="button" class="underline text-sm font-extrabold w-full text-center mt-3" onclick="setLMode(LMODE==='in'?'up':'in')">Novo por aqui? Criar conta de professor</button>
     <p id="lst" class="hint text-center mt-3"></p>
     <button id="lloc" type="button" class="btn mt-3" onclick="modoLocal()">Entrar com dados de teste (modo local)</button>
   </form>
@@ -326,7 +329,25 @@ function modoLocal(){
   LOCAL=true;USER=null;lastUid=null;
   paintSync();hideLogin();toast('Modo local: dados somente neste aparelho, sem sincronização.');render(true)
 }
-async function doLogin(e){e.preventDefault();const b=$('#lb'),er=$('#lerr');b.disabled=true;b.textContent='Entrando…';er.textContent='';
+
+let LMODE='in';
+function setLMode(m){LMODE=m;const up=m==='up';$('#lnw').classList.toggle('hidden',!up);$('#lnome').required=up;$('#lp').autocomplete=up?'new-password':'current-password';$('#lp').minLength=up?6:0;
+  $('#lh').textContent=up?'Criar conta':'Entrar';$('#lhint').textContent=up?'Cadastre-se como professor(a) com e-mail e senha de no mínimo 6 caracteres.':'Acesso restrito à equipa HappyFit Kids.';$('#lb').textContent=up?'Criar conta e entrar':'Entrar';
+  $('#lalt').textContent=up?'Já tem conta? Entrar':'Novo por aqui? Criar conta de professor';$('#lerr').textContent='';$('#lst').textContent='';
+  [['#ltin','in'],['#ltup','up']].forEach(([i,k])=>{const b=$(i);b.style.background=k===m?'var(--b)':'';b.classList.toggle('text-white',k===m)})}
+async function doSignUp(){const b=$('#lb'),er=$('#lerr'),nome=$('#lnome').value.trim().replace(/\s+/g,' '),email=$('#le').value.trim(),senha=$('#lp').value;er.textContent='';$('#lst').textContent='';
+  if(nome.length<3||!/\s/.test(nome))return er.textContent='Informe o nome completo do(a) professor(a).';
+  if(!email)return er.textContent='Informe o e-mail.';
+  if(senha.length<6)return er.textContent='A senha precisa ter no mínimo 6 caracteres.';
+  b.disabled=true;b.textContent='Criando conta…';
+  try{const{data,error}=await db.auth.signUp({email,password:senha,options:{data:{full_name:nome}}});
+    if(error){const m=error.message||String(error);er.textContent=/already|registered/i.test(m)?'Este e-mail já está cadastrado. Toque em "Entrar" para acessar.':/password/i.test(m)?'Senha inválida ou muito fraca. Use no mínimo 6 caracteres.':/valid email|invalid.*email/i.test(m)?'Esse e-mail não parece válido.':/rate limit|too many/i.test(m)?'Muitas tentativas. Aguarde alguns minutos e tente de novo.':/signups? .*disabled|not allowed/i.test(m)?'O cadastro de novos professores está desativado no momento.':/fetch|network/i.test(m)?'Sem ligação ao Supabase (internet ou bloqueio do site).':m}
+    else if(data.session){$('#lp').value='';USER=data.session.user||data.user||USER;entrou();toast('Bem-vindo(a), '+nome.split(' ')[0]+'!')}
+    else if(data.user&&Array.isArray(data.user.identities)&&!data.user.identities.length)er.textContent='Este e-mail já está cadastrado. Toque em "Entrar" para acessar.';
+    else{$('#lp').value='';setLMode('in');$('#lst').textContent='Conta criada! Enviamos um e-mail de confirmação: verifique sua caixa de entrada (e o spam), confirme e depois entre.'}}
+  catch(x){er.textContent='Erro: '+(x.message||x)}
+  b.disabled=false;if(LMODE==='up')b.textContent='Criar conta e entrar'}
+async function doLogin(e){e.preventDefault();if(LMODE==='up')return doSignUp();const b=$('#lb'),er=$('#lerr');b.disabled=true;b.textContent='Entrando…';er.textContent='';
   try{const{error}=await db.auth.signInWithPassword({email:$('#le').value.trim(),password:$('#lp').value});
     if(error){const m=error.message||String(error);
       er.textContent=/invalid login/i.test(m)?'E-mail ou senha incorretos, ou esse utilizador ainda não existe no Supabase (Authentication → Users).':/not confirmed/i.test(m)?'E-mail ainda não confirmado: no Supabase, confirme o utilizador (Auto Confirm).':/fetch|network/i.test(m)?'Sem ligação ao Supabase (internet ou bloqueio do site).':m;health()}
@@ -757,7 +778,9 @@ function sintese(id){const s=alu(id);if(!s)return;const bs=ld('b').filter(b=>Str
   ${L('Última avaliação',ult?dBR(ult.data)+' · '+esc(ult.tipo||'')+(ult.prox?' · próxima prevista para '+dBR(ult.prox):''):'Nenhuma avaliação registrada.')}
   <p class="hint mt-3">Feito apenas com os registros do app, para apoiar sua decisão profissional. Não é diagnóstico.</p><button class="btn ghost mt-3" onclick="closeM()">Fechar</button></div>`;$('#modal').classList.remove('hidden')}
 function pdiCard(id){if(!id)return'';const a=evalsOf(id).slice(-1)[0];if(!a)return'';const prim=String(a.prim||'').trim(),estr=String(a.estr||'').trim();if(!prim&&!estr)return'';return `<div class="card mt-3 !bg-amber-50 dark:!bg-amber-950 !border-amber-200 dark:!border-amber-800"><p class="font-extrabold text-sm" style="color:var(--o)">🎯 Guia pedagógico · PDI</p>${prim?`<p class="text-sm font-bold mt-1">🎯 Metas do PDI: ${esc(prim)}</p>`:''}${estr?`<p class="text-sm font-bold mt-1">🧩 Estratégias/Adaptações: ${esc(estr)}</p>`:''}</div>`}
-function planExtras(k){const st=planState(k),ids=(st.alunosExtras||[]).map(String),al=ld('s').filter(s=>String(s.id)!==String(st.aluno));if(!st.aluno)return'';return `<p class="lb">Alunos extras <span class="hint !not-italic">(opcional)</span></p><p class="hint mb-2">O Aluno Guia define a faixa etária/nível. Os extras receberão uma cópia independente do planejamento.</p><div class="flex flex-wrap gap-2">${al.map(s=>`<button type="button" class="chip ${ids.includes(String(s.id))?'on':''}" data-id="${esc(s.id)}" onclick="togglePlanExtra('${k}',this.dataset.id)">${esc(s.nome)}<small>${esc(idTxt(s))}</small></button>`).join('')}</div>${ids.length?`<p class="hint mt-2 font-bold">${ids.length} aluno(s) extra(s) selecionado(s).</p>`:''}`}
+let PEO={};
+function planExtras(k){const st=planState(k),ids=(st.alunosExtras||[]).map(String),al=ld('s').filter(x=>String(x.id)!==String(st.aluno));if(!st.aluno)return'';
+  return `<details class="mt-4" ${PEO[k]?'open':''} ontoggle="PEO['${k}']=this.open"><summary class="card !py-3 font-extrabold text-sm cursor-pointer">+ Adicionar alunos extras à aula${ids.length?` (${ids.length} selecionado${ids.length===1?'':'s'})`:''}</summary><p class="hint my-2">O Aluno Guia define a faixa etária/nível. Os extras receberão uma cópia independente do planejamento.</p><div class="flex flex-wrap gap-2">${al.map(x=>`<button type="button" class="chip ${ids.includes(String(x.id))?'on':''}" data-id="${esc(x.id)}" onclick="togglePlanExtra('${k}',this.dataset.id)">${esc(x.nome)}<small>${esc(idTxt(x))}</small></button>`).join('')||'<p class="hint">Nenhum outro aluno cadastrado.</p>'}</div></details>`}
 function togglePlanExtra(k,id){alterPlan(k,st=>{const x=String(id);st.alunosExtras=Array.isArray(st.alunosExtras)?st.alunosExtras:[];const i=st.alunosExtras.findIndex(v=>String(v)===x);i>-1?st.alunosExtras.splice(i,1):st.alunosExtras.push(id)})}
 function changePlanAluno(k,id,el){
   const st=planState(k),old=String(st.aluno||''),next=String(id||'');
@@ -844,7 +867,9 @@ function natBlocks(){const p=nPerfil(),bl=p==='tec'?[['C',MN[2]],['D',MT[0]],['E
   return `<p class="lb">Perfil da sessão</p><div class="grid grid-cols-2 gap-2">${[['base','Iniciação e fundamentos'],['tec','Nados e aperfeiçoamento']].map(x=>chip(x[1],p===x[0],`setPerfil('${x[0]}')`,'c')).join('')}</div>
   <p class="hint mt-1">${R.perfil?'':'Sugerido pelo nível aquático do aluno. '}Em "Nados e aperfeiçoamento" você avalia crawl, costas, peito, borboleta, saídas, viradas e resistência.</p>
   ${bl.map(([l,b])=>`<p class="lb !mt-4" style="color:var(--c)">Bloco ${l} · ${b[0]}${l==='D'?' <span class="hint !not-italic">(avalie ao menos 1 nado)</span>':l==='E'?' <span class="hint !not-italic">(opcional)</span>':''}</p>${b[1].map(m=>mRow(m[0])).join('')}`).join('')}`}
+let RPRE=null;
 function vRep(){const bs=ld('b'),rs=ld('r');
+  if(R.link&&(!RPRE||RPRE.r!==R||RPRE.l!==String(R.link))){RPRE={r:R,l:String(R.link)};const pb=bs.find(x=>String(x.id)===String(R.link));if(pb&&R.tipo!=='Natação'&&Array.isArray(pb.hab))R.habs=[...pb.hab]}
   if(!bs.length&&!ld('s').length)return `${head('Relatório pós-aula','Avalie a resposta do aluno logo após a sessão.')}<div class="card text-center"><p class="font-extrabold mb-3">Cadastre um aluno antes de avaliar.</p><button class="btn" onclick="tab='alu';render()">Ir para Alunos</button></div>`;
   const ids=[...new Set([...ld('s').map(x=>x.id),...bs.map(b=>b.aluno)])];const mine=bs.filter(b=>b.aluno==R.aluno&&tp(b)===R.tipo);
   const done=i=>rs.some(r=>r.link==i),nat=R.tipo==='Natação';
@@ -1059,10 +1084,9 @@ function alunoOpts(){const st=ld('s').sort((x,y)=>x.nome.localeCompare(y.nome)),
 function vPlanos(){const bs=ld('b'),rs=ld('r');
   let h=`<p class="lb !mt-0">Aluno</p><select class="in" onchange="AS=this.value;render(true)"><option value="">Selecione…</option>${alunoOpts()}</select>`;
   if(!AS)return h+'<p class="hint text-center mt-6">Selecione um aluno para ver todos os planos de aula e relatórios dele em um só lugar.</p>';
-  const s=alu(AS),l=bs.filter(b=>String(b.aluno)===String(AS)).sort((x,y)=>String(y.data).localeCompare(String(x.data))),temF=l.some(b=>tp(b)==='Funcional'),temN=l.some(b=>tp(b)==='Natação');
-  h+=`<div class="grid grid-cols-2 gap-2 mt-3"><button class="btn !py-3 !text-sm" style="background:var(--o)" onclick="planejarPara('brief','${AS}')">+ Novo Plano Funcional</button><button class="btn !py-3 !text-sm" style="background:var(--c)" onclick="planejarPara('nat','${AS}')">+ Novo Plano Natação</button></div>
-  <div class="grid grid-cols-2 gap-2 mt-2 mb-4"><button class="btn ghost !py-2 !text-xs" ${temF?'':'disabled style="opacity:.45"'} onclick="repetirUltima('${AS}','Funcional')">Repetir última aula (Funcional)</button><button class="btn ghost !py-2 !text-xs" ${temN?'':'disabled style="opacity:.45"'} onclick="repetirUltima('${AS}','Natação')">Repetir última aula (Natação)</button></div>`;
-  if(!l.length)return h+`<p class="hint text-center mt-6">Nenhum plano de aula para ${esc(s?s.nome:'este aluno')} ainda. Use os botões acima para criar o primeiro.</p>`;
+  const s=alu(AS),l=bs.filter(b=>String(b.aluno)===String(AS)).sort((x,y)=>String(y.data).localeCompare(String(x.data)));
+  h+='<div class="mt-4"></div>';
+  if(!l.length)return h+`<p class="hint text-center mt-6">Nenhum plano de aula para ${esc(s?s.nome:'este aluno')} ainda. Crie o primeiro na aba Planejar.</p>`;
   return h+l.map(b=>sessCard(b,rs.find(x=>x.link==b.id),0)).join('')}
 function vHist(){const bs=ld('b'),rs=ld('r'),av=ld('a');const q=Q.toLowerCase();
   const list=[...(HF==='aval'?[]:bs.filter(b=>nomeDe(b).toLowerCase().includes(q)&&(HF==='all'||tp(b)===HF)).map(b=>[b.data,b])),
