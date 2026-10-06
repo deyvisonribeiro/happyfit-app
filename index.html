@@ -563,8 +563,8 @@ function render(keep){
   window.Idiomorph?Idiomorph.morph(v,html,{morphStyle:'innerHTML',ignoreActiveValue:true}):v.innerHTML=html;if(!keep)window.scrollTo(0,0)}
 
 /* ---------- ALUNOS ---------- */
-function vAlu(){const tabs=`<div class="grid grid-cols-2 gap-1 mb-4 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border-2 border-blue-100 dark:border-slate-700">${[['cad','Cadastro'],['av','Avaliações']].map(t=>`<button class="rounded-xl py-2.5 font-extrabold text-sm ${AT===t[0]?'text-white':''}" style="${AT===t[0]?'background:var(--b)':''}" onclick="AT='${t[0]}';render()">${t[1]}</button>`).join('')}</div>`;
-  return AT==='av'?`${head('Avaliações dos alunos','Histórico comparativo das avaliações físicas e de desenvolvimento (Inicial, Trimestral, Semestral, Anual).')}${tabs}${vAvs()}`:`${head('Meus alunos','Cadastre uma vez e use em todos os briefings. Anote necessidades especiais para lembrar no momento da prescrição.')}${tabs}${vCad()}`}
+function vAlu(){const tabs=`<div class="grid grid-cols-3 gap-1 mb-4 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border-2 border-blue-100 dark:border-slate-700">${[['cad','Cadastro'],['pl','Planos de aula e relatórios'],['av','Avaliações físicas']].map(t=>`<button class="rounded-xl py-2 px-1 font-extrabold text-xs leading-tight ${AT===t[0]?'text-white':''}" style="${AT===t[0]?'background:var(--b)':''}" onclick="AT='${t[0]}';render()">${t[1]}</button>`).join('')}</div>`;
+  return AT==='pl'?`${head('Planos de aula e relatórios','Histórico individual: planos, relatórios pós-aula e feedback para as famílias.')}${tabs}${vPlanos()}`:AT==='av'?`${head('Avaliações dos alunos','Histórico comparativo das avaliações físicas e de desenvolvimento (Inicial, Trimestral, Semestral, Anual).')}${tabs}${vAvs()}`:`${head('Meus alunos','Cadastre uma vez e use em todos os briefings. Anote necessidades especiais para lembrar no momento da prescrição.')}${tabs}${vCad()}`}
 function vCad(){const a=ld('s').sort((x,y)=>x.nome.localeCompare(y.nome)),bs=ld('b'),av=ld('a');
   return `
   <button class="btn mb-4" onclick="modal()">+ Novo aluno</button>
@@ -572,7 +572,7 @@ function vCad(){const a=ld('s').sort((x,y)=>x.nome.localeCompare(y.nome)),bs=ld(
    ${s.obs?`<p class="hint mt-1">${esc(s.obs)}</p>`:''}
    <p class="text-xs font-bold mt-2 text-slate-500">${bs.filter(b=>b.aluno==s.id).length} sessão(ões) · ${av.filter(x=>x.aluno==s.id).length} avaliação(ões)</p>
    ${linhaFin(s)}
-   <button class="btn !py-2 mt-3" style="background:var(--c)" onclick="AS='${s.id}';AT='av';render()">Ver avaliações e evolução</button>
+   <div class="grid grid-cols-2 gap-2 mt-3"><button class="btn !py-2 !text-sm" style="background:var(--b)" onclick="abrirFicha('${s.id}')">Planos e relatórios</button><button class="btn !py-2 !text-sm" style="background:var(--c)" onclick="AS='${s.id}';AT='av';render()">Avaliações físicas</button></div>
     <button class="btn ghost !py-2 !text-sm mt-2" onclick="sintese('${s.id}')">Resumo do aluno</button>
    <button class="btn ghost !py-2 !text-sm mt-2" style="color:#15803d" onclick="modalCobranca('${s.id}')">Cobrança por WhatsApp</button>
    <div class="grid grid-cols-2 gap-2 mt-2"><button class="btn ghost !py-2" onclick="modal('${s.id}')">Editar</button><button class="btn ghost !py-2" style="color:var(--p)" onclick="delStu('${s.id}')">Excluir</button></div></div>`).join('')||'<p class="hint text-center mt-8">Nenhum aluno ainda. Toque em “Novo aluno” para começar.</p>'}`}
@@ -987,7 +987,7 @@ function evolucaoLongitudinal(l){
 }
 function vAvs(){const all=ld('a'),st=ld('s').sort((x,y)=>x.nome.localeCompare(y.nome));
   const ids=[...new Set([...st.map(s=>s.id),...all.map(a=>a.aluno)])];
-  const opt=ids.map(i=>`<option value="${esc(i)}" ${AS==i?'selected':''}>${esc(nomeDe(all.find(a=>a.aluno==i)||{aluno:i}))} (${all.filter(a=>a.aluno==i).length})</option>`).join('');
+  const opt=alunoOpts();
   let h=`<p class="lb !mt-0">Aluno</p><select class="in" onchange="AS=this.value;render(true)"><option value="">Selecione…</option>${opt}</select>
   <div class="grid grid-cols-2 gap-2 mt-3 mb-4"><button class="btn !py-3 !text-sm" style="background:var(--c)" onclick="expA('csv')">Exportar todas (CSV)</button><button class="btn ghost !py-3 !text-sm" onclick="expA('json')">Exportar todas (JSON)</button></div>`;
   if(!AS)return h+`<p class="hint text-center mt-6">${all.length} avaliação(ões) registradas. Selecione um aluno para acompanhar a evolução física, aquática e socioemocional ao longo do tempo.</p>`;
@@ -1045,15 +1045,29 @@ function expA(f){const all=ld('a');if(!all.length)return toast('Nenhuma avaliaç
 
 /* ---------- HISTÓRICO ---------- */
 const tp=b=>(!b.tipo||b.tipo==='Terrestre')?'Funcional':b.tipo;
+
+function sessCard(b,r,lnk){const nat=tp(b)==='Natação',cor=nat?'var(--c)':'var(--o)',nm=esc(nomeDe(b)),ac=(b.atividades||[]).filter(Boolean);
+  return `<div class="card">
+   <div class="flex justify-between gap-2"><p class="font-extrabold text-lg leading-tight"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5" style="background:${cor}"></span>${lnk?`<button class="text-left underline decoration-dotted underline-offset-4" onclick="abrirFicha('${b.aluno}')">${nm}</button>`:nm}</p><span class="hint !not-italic font-bold shrink-0">${fmt(b.data)}</span></div>
+   <p class="text-xs font-bold text-slate-500">${esc(tp(b))}</p><p class="text-sm font-extrabold" style="color:${cor}">${esc(fo(b))}</p><p class="text-sm font-semibold">${esc((b.hab||[]).join(', '))}</p>${ac.length?`<p class="text-sm"><b>Brincadeiras/atividades:</b> ${esc(ac.join(', '))}</p>`:''}
+   ${r?repCard(r)
+   :`<button class="mt-2 text-xs font-extrabold rounded-xl px-3 py-2" style="background:#fff1e0;color:var(--o)" onclick="R=newR();R.aluno='${b.aluno}';R.tipo='${tp(b)}';R.link='${b.id}';tab='rep';render()">Relatório pendente · Preencher agora</button><button class="mt-2 ml-2 text-xs font-extrabold rounded-xl px-3 py-2" style="background:#e7f8ee;color:var(--g)" onclick="aulaAtiva('${b.id}')">Aula ativa</button>`}
+   <div class="mt-2 flex justify-between gap-2"><button class="btn ghost !w-auto !py-1.5 !px-3 !text-xs" onclick="verPlano('${b.id}')">Ver plano rápido</button><button class="btn ghost !w-auto !py-1.5 !px-3 !text-xs" style="color:var(--o)" onclick="delHist('${b.id}')">Excluir</button></div></div>`}
+function abrirFicha(id){AS=String(id);AT='pl';tab='alu';render();window.scrollTo(0,0)}
+function alunoOpts(){const st=ld('s').sort((x,y)=>x.nome.localeCompare(y.nome)),all=ld('a'),bs=ld('b'),ids=[...new Set([...st.map(x=>x.id),...all.map(x=>x.aluno)])];
+  return ids.map(i=>{const n=bs.filter(b=>b.aluno==i).length,m=all.filter(x=>x.aluno==i).length;return `<option value="${esc(i)}" ${AS==i?'selected':''}>${esc(nomeDe(all.find(x=>x.aluno==i)||bs.find(b=>b.aluno==i)||{aluno:i}))} (${n} ${n===1?'aula/relatório':'aulas/relatórios'} · ${m} ${m===1?'avaliação física':'avaliações físicas'})</option>`}).join('')}
+function vPlanos(){const bs=ld('b'),rs=ld('r');
+  let h=`<p class="lb !mt-0">Aluno</p><select class="in" onchange="AS=this.value;render(true)"><option value="">Selecione…</option>${alunoOpts()}</select>`;
+  if(!AS)return h+'<p class="hint text-center mt-6">Selecione um aluno para ver todos os planos de aula e relatórios dele em um só lugar.</p>';
+  const s=alu(AS),l=bs.filter(b=>String(b.aluno)===String(AS)).sort((x,y)=>String(y.data).localeCompare(String(x.data))),temF=l.some(b=>tp(b)==='Funcional'),temN=l.some(b=>tp(b)==='Natação');
+  h+=`<div class="grid grid-cols-2 gap-2 mt-3"><button class="btn !py-3 !text-sm" style="background:var(--o)" onclick="planejarPara('brief','${AS}')">+ Novo Plano Funcional</button><button class="btn !py-3 !text-sm" style="background:var(--c)" onclick="planejarPara('nat','${AS}')">+ Novo Plano Natação</button></div>
+  <div class="grid grid-cols-2 gap-2 mt-2 mb-4"><button class="btn ghost !py-2 !text-xs" ${temF?'':'disabled style="opacity:.45"'} onclick="repetirUltima('${AS}','Funcional')">Repetir última aula (Funcional)</button><button class="btn ghost !py-2 !text-xs" ${temN?'':'disabled style="opacity:.45"'} onclick="repetirUltima('${AS}','Natação')">Repetir última aula (Natação)</button></div>`;
+  if(!l.length)return h+`<p class="hint text-center mt-6">Nenhum plano de aula para ${esc(s?s.nome:'este aluno')} ainda. Use os botões acima para criar o primeiro.</p>`;
+  return h+l.map(b=>sessCard(b,rs.find(x=>x.link==b.id),0)).join('')}
 function vHist(){const bs=ld('b'),rs=ld('r'),av=ld('a');const q=Q.toLowerCase();
   const list=[...(HF==='aval'?[]:bs.filter(b=>nomeDe(b).toLowerCase().includes(q)&&(HF==='all'||tp(b)===HF)).map(b=>[b.data,b])),
    ...(HF==='all'||HF==='aval'?av.filter(a=>nomeDe(a).toLowerCase().includes(q)).map(a=>[a.data+(a.criado||'').slice(10),{...a,_av:1}]):[])].sort((x,y)=>String(y[0]).localeCompare(String(x[0]))).map(x=>x[1]);
-  const cards=list.map(b=>{if(b._av)return avCard(b,1);const r=rs.find(x=>x.link==b.id);return `<div class="card">
-   <div class="flex justify-between gap-2"><p class="font-extrabold text-lg leading-tight"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5" style="background:var(--${tp(b)==='Natação'?'c':'o'})"></span>${esc(nomeDe(b))}</p><span class="hint !not-italic font-bold shrink-0">${fmt(b.data)}</span></div>
-   <p class="text-sm font-extrabold" style="color:${tp(b)==='Natação'?'var(--c)':'var(--o)'}">${esc(fo(b))}</p><p class="text-sm font-semibold">${esc(b.hab.join(', '))}</p>
-   ${r?repCard(r)
-   :`<button class="mt-2 text-xs font-extrabold rounded-xl px-3 py-2" style="background:#fff1e0;color:var(--o)" onclick="R=newR();R.aluno='${b.aluno}';R.tipo='${tp(b)}';R.link='${b.id}';tab='rep';render()">Relatório pendente · preencher</button><button class="mt-2 ml-2 text-xs font-extrabold rounded-xl px-3 py-2" style="background:#e7f8ee;color:var(--g)" onclick="aulaAtiva('${b.id}')">Aula ativa</button>`}
-   <div class="mt-2 flex justify-between gap-2"><button class="btn ghost !w-auto !py-1.5 !px-3 !text-xs" onclick="verPlano('${b.id}')">Ver plano rápido</button><button class="btn ghost !w-auto !py-1.5 !px-3 !text-xs" style="color:var(--o)" onclick="delHist('${b.id}')">Excluir</button></div></div>`}).join('');
+  const cards=list.map(b=>{if(b._av)return avCard(b,1);return sessCard(b,rs.find(x=>x.link==b.id),1)}).join('');
   return `${head('Histórico de sessões','Busque por aluno, filtre por ambiente e exporte para Excel ou Google Sheets.')}
   <input class="in mb-3" placeholder="Buscar por nome do aluno" value="${esc(Q)}" oninput="Q=this.value;render(true)">
   <div class="flex flex-wrap gap-1.5 mb-3">${[['all','Tudo'],['Funcional','Funcional'],['Natação','Natação'],['aval','Avaliações']].map(f=>`<button class="chip flex-1 !w-auto min-w-[4.5rem] !min-h-0 !py-2 !text-center !text-xs ${HF===f[0]?'on':''}" onclick="HF='${f[0]}';render()">${f[1]}</button>`).join('')}</div>
