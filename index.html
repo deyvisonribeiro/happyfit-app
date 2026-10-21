@@ -1049,6 +1049,26 @@ header #syn,header #thm{border:1px solid var(--bd2)!important;border-radius:var(
 }
 @media (prefers-reduced-motion:reduce){.acard{transition:none}}
 </style>
+<style id="hfk-mobile-nav-six-items">
+@media (max-width:639px){
+  nav{
+    display:grid!important;
+    grid-template-columns:repeat(6,minmax(0,1fr))!important;
+    grid-auto-flow:row!important;
+    grid-auto-rows:minmax(0,1fr)!important;
+    align-items:stretch!important;
+    height:calc(72px + env(safe-area-inset-bottom))!important;
+    overflow:hidden!important;
+  }
+  nav button{
+    width:100%!important;min-width:0!important;min-height:0!important;height:100%!important;
+    display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;
+    gap:3px!important;padding:5px 1px!important;border-radius:12px!important;
+    font-size:9px!important;line-height:1.05!important;white-space:nowrap!important;
+  }
+  nav button svg{width:20px!important;height:20px!important;flex:0 0 20px!important}
+}
+</style>
 </head>
 <body>
 <div id="tbanner" class="test-only" style="position:fixed;top:0;left:0;right:0;z-index:80;background:#b45309;color:#fff;font-size:11px;font-weight:800;text-align:center;padding:3px 6px">VERSÃO DE TESTE — os dados ficam somente neste aparelho. <button style="text-decoration:underline" onclick="carregarSeed(true)">Restaurar dados de teste</button></div>
@@ -1457,7 +1477,7 @@ async function boot(){
   entrou()}
 
 </script>
-<script>/* A navegação alterna entre cinco destinos no celular e inclui Perfil no menu lateral do desktop. */
+<script>/* A navegação mostra seis destinos em uma linha no celular e inclui Perfil no menu lateral do desktop. */
 let _profileNavDesktop=window.matchMedia('(min-width:640px)').matches;
 window.addEventListener('resize',()=>{const next=window.matchMedia('(min-width:640px)').matches;if(next!==_profileNavDesktop){_profileNavDesktop=next;render(true)}});
 
